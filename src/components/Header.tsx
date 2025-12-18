@@ -11,7 +11,8 @@ import {
   User, 
   LogOut, 
   Shield,
-  Home
+  Home,
+  Trophy
 } from 'lucide-react';
 
 const Header: React.FC = () => {
@@ -22,6 +23,7 @@ const Header: React.FC = () => {
   const navItems = [
     { label: 'Home', href: '/', icon: Home },
     { label: 'Tournaments', href: '/tournaments', icon: Gamepad2 },
+    { label: 'Leaderboard', href: '/leaderboard', icon: Trophy },
     ...(isAuthenticated ? [{ label: 'Wallet', href: '/wallet', icon: Wallet }] : []),
     ...(isAdmin ? [{ label: 'Admin', href: '/admin', icon: Shield }] : []),
   ];
