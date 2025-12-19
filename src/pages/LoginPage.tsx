@@ -6,18 +6,16 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Gamepad2, Mail, Phone, Lock, ArrowLeft, Loader2 } from 'lucide-react';
+import { Gamepad2, Mail, UserPlus, Lock, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { login, loginWithPhone, isLoading } = useAuth();
+  const { login, signup, isLoading } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
+  const [displayName, setDisplayName] = useState('');
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,29 +23,33 @@ const LoginPage: React.FC = () => {
       await login(email, password);
       toast.success('Login successful!');
       navigate('/');
-    } catch (error) {
-      toast.error('Login failed. Please check your credentials.');
+    } catch (error: any) {
+      const errorMessage = error.code === 'auth/invalid-credential' 
+        ? 'Invalid email or password' 
+        : error.code === 'auth/user-not-found'
+        ? 'No account found with this email'
+        : 'Login failed. Please try again.';
+      toast.error(errorMessage);
     }
   };
 
-  const handleSendOtp = () => {
-    if (phone.length < 10) {
-      toast.error('Please enter a valid phone number');
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters');
       return;
     }
-    // TODO: Implement Firebase phone auth
-    setOtpSent(true);
-    toast.success('OTP sent to your phone');
-  };
-
-  const handlePhoneLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
     try {
-      await loginWithPhone(phone, otp);
-      toast.success('Login successful!');
+      await signup(email, password, displayName);
+      toast.success('Account created successfully!');
       navigate('/');
-    } catch (error) {
-      toast.error('Invalid OTP. Please try again.');
+    } catch (error: any) {
+      const errorMessage = error.code === 'auth/email-already-in-use' 
+        ? 'An account with this email already exists' 
+        : error.code === 'auth/weak-password'
+        ? 'Password is too weak'
+        : 'Signup failed. Please try again.';
+      toast.error(errorMessage);
     }
   };
 
@@ -69,29 +71,29 @@ const LoginPage: React.FC = () => {
       <main className="flex-1 container flex items-center justify-center py-10">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Welcome Back</CardTitle>
-            <CardDescription>Sign in to join tournaments and win prizes</CardDescription>
+            <CardTitle className="text-2xl">Welcome to BattleArena</CardTitle>
+            <CardDescription>Sign in or create an account to join tournaments</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="email" className="w-full">
+            <Tabs defaultValue="login" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="email" className="gap-2">
+                <TabsTrigger value="login" className="gap-2">
                   <Mail className="w-4 h-4" />
-                  Email
+                  Sign In
                 </TabsTrigger>
-                <TabsTrigger value="phone" className="gap-2">
-                  <Phone className="w-4 h-4" />
-                  Phone
+                <TabsTrigger value="signup" className="gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  Sign Up
                 </TabsTrigger>
               </TabsList>
               
-              {/* Email Login */}
-              <TabsContent value="email">
+              {/* Login */}
+              <TabsContent value="login">
                 <form onSubmit={handleEmailLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="login-email">Email</Label>
                     <Input
-                      id="email"
+                      id="login-email"
                       type="email"
                       placeholder="player@example.com"
                       value={email}
@@ -100,9 +102,9 @@ const LoginPage: React.FC = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="login-password">Password</Label>
                     <Input
-                      id="password"
+                      id="login-password"
                       type="password"
                       placeholder="••••••••"
                       value={password}
@@ -126,83 +128,59 @@ const LoginPage: React.FC = () => {
                 </form>
               </TabsContent>
               
-              {/* Phone Login */}
-              <TabsContent value="phone">
-                <form onSubmit={handlePhoneLogin} className="space-y-4">
+              {/* Signup */}
+              <TabsContent value="signup">
+                <form onSubmit={handleSignup} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        className="w-20"
-                        value="+91"
-                        disabled
-                      />
-                      <Input
-                        id="phone"
-                        type="tel"
-                        placeholder="9876543210"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                        required
-                        disabled={otpSent}
-                      />
-                    </div>
+                    <Label htmlFor="signup-name">Display Name</Label>
+                    <Input
+                      id="signup-name"
+                      type="text"
+                      placeholder="ProPlayer"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      required
+                    />
                   </div>
-                  
-                  {!otpSent ? (
-                    <Button type="button" className="w-full" onClick={handleSendOtp}>
-                      Send OTP
-                    </Button>
-                  ) : (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="otp">Enter OTP</Label>
-                        <Input
-                          id="otp"
-                          type="text"
-                          placeholder="123456"
-                          value={otp}
-                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                          maxLength={6}
-                          required
-                        />
-                      </div>
-                      <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Verifying...
-                          </>
-                        ) : (
-                          'Verify & Sign In'
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="w-full"
-                        onClick={() => setOtpSent(false)}
-                      >
-                        Change Number
-                      </Button>
-                    </>
-                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="player@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Password</Label>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creating account...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        Create Account
+                      </>
+                    )}
+                  </Button>
                 </form>
               </TabsContent>
             </Tabs>
-
-            <div className="mt-6 text-center text-sm text-muted-foreground">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-primary hover:underline font-medium">
-                Sign up
-              </Link>
-            </div>
-
-            {/* Demo hint */}
-            <div className="mt-4 p-3 rounded-lg bg-secondary/50 border border-border/50 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground mb-1">Demo Mode:</p>
-              <p>Use any email to login as user. Include "admin" in email for admin access.</p>
-            </div>
           </CardContent>
         </Card>
       </main>

@@ -1,95 +1,115 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  signOut,
+  User as FirebaseUser 
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { User } from '@/types';
 
 interface AuthContextType {
   user: User | null;
+  firebaseUser: FirebaseUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
-  loginWithPhone: (phone: string, otp: string) => Promise<void>;
+  signup: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user for development - Replace with Firebase Auth
-// New users start with 0 balance
-const mockUser: User = {
-  id: 'mock-user-123',
-  email: 'player@example.com',
-  phone: '+919876543210',
-  displayName: 'ProPlayer',
-  walletBalance: 0,
-  winningCredits: 0,
-  isBanned: false,
-  isAdmin: false,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
-
-const mockAdmin: User = {
-  id: 'mock-admin-456',
-  email: 'admin@battlearena.com',
-  phone: '+919876543211',
-  displayName: 'Admin',
-  walletBalance: 0,
-  winningCredits: 0,
-  isBanned: false,
-  isAdmin: true,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Listen for auth state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      setFirebaseUser(fbUser);
+      
+      if (fbUser) {
+        // Fetch user profile from Firestore
+        setTimeout(() => {
+          fetchUserProfile(fbUser.uid);
+        }, 0);
+      } else {
+        setUser(null);
+        setIsLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const fetchUserProfile = async (uid: string) => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setUser({
+          id: uid,
+          email: data.email || '',
+          phone: data.phone || '',
+          displayName: data.displayName || '',
+          walletBalance: data.walletBalance || 0,
+          winningCredits: data.winningCredits || 0,
+          isBanned: data.isBanned || false,
+          isAdmin: data.isAdmin || false,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // TODO: Replace with Firebase Auth
-      // import { signInWithEmailAndPassword } from 'firebase/auth';
-      // const credential = await signInWithEmailAndPassword(auth, email, password);
-      // const userData = await getUserFromFirestore(credential.user.uid);
-      
-      // Mock implementation for demo
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (email.includes('admin')) {
-        setUser(mockAdmin);
-      } else {
-        setUser(mockUser);
-      }
-    } finally {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
       setIsLoading(false);
+      throw error;
     }
   }, []);
 
-  const loginWithPhone = useCallback(async (phone: string, otp: string) => {
+  const signup = useCallback(async (email: string, password: string, displayName: string) => {
     setIsLoading(true);
     try {
-      // TODO: Replace with Firebase Phone Auth
-      // import { signInWithPhoneNumber, RecaptchaVerifier } from 'firebase/auth';
-      // const confirmationResult = await signInWithPhoneNumber(auth, phone, recaptchaVerifier);
-      // const credential = await confirmationResult.confirm(otp);
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
       
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setUser(mockUser);
-    } finally {
+      // Create user profile in Firestore
+      await setDoc(doc(db, 'users', credential.user.uid), {
+        email,
+        displayName,
+        phone: '',
+        walletBalance: 0,
+        winningCredits: 0,
+        isBanned: false,
+        isAdmin: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
       setIsLoading(false);
+      throw error;
     }
   }, []);
 
   const logout = useCallback(async () => {
     setIsLoading(true);
     try {
-      // TODO: Replace with Firebase Auth signOut
-      // import { signOut } from 'firebase/auth';
-      // await signOut(auth);
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await signOut(auth);
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -100,11 +120,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <AuthContext.Provider
       value={{
         user,
+        firebaseUser,
         isLoading,
         isAuthenticated: !!user,
         isAdmin: user?.isAdmin ?? false,
         login,
-        loginWithPhone,
+        signup,
         logout,
         setUser,
       }}
